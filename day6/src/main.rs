@@ -2,6 +2,7 @@ use std::{
     collections::HashSet,
     fs::File,
     io::{BufRead, BufReader},
+    time::Instant,
 };
 
 const GUARD_UP: char = '^';
@@ -21,7 +22,9 @@ fn main() {
         let line = line.unwrap();
         grid.push(line.chars().collect::<Vec<_>>());
     }
+    let t = Instant::now();
     dbg!(part2(grid));
+    dbg!(t.elapsed());
 }
 
 fn is_loop(mut grid: Vec<Vec<char>>) -> bool {
@@ -36,10 +39,6 @@ fn is_loop(mut grid: Vec<Vec<char>>) -> bool {
             }
         }
     }
-
-    let og_guard_x = guard_x;
-    let og_guard_y = guard_y;
-    let og_guard_state = grid[guard_x][guard_y];
 
     let mut visited = HashSet::new();
     while let Some((new_x, new_y)) = movement_delta(&grid, guard_x, guard_y) {
@@ -72,6 +71,24 @@ fn is_loop(mut grid: Vec<Vec<char>>) -> bool {
 }
 
 fn part2(grid: Vec<Vec<char>>) -> i32 {
+    let old_visits = part1_visits(grid.clone());
+    let mut count = 0;
+    for x in 0..grid.len() {
+        for y in 0..grid[0].len() {
+            if grid[x][y] != EMPTY || old_visits[x][y] != VISITED {
+                continue;
+            }
+            let mut grid = grid.clone();
+            grid[x][y] = OBSTRUCTION;
+            if is_loop(grid) {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+fn part1_visits(mut grid: Vec<Vec<char>>) -> Vec<Vec<char>> {
     let mut guard_x = usize::MAX;
     let mut guard_y = usize::MAX;
     for x in 0..grid.len() {
@@ -83,20 +100,32 @@ fn part2(grid: Vec<Vec<char>>) -> i32 {
             }
         }
     }
-    let mut count = 0;
-    for x in 0..grid.len() {
-        for y in 0..grid[0].len() {
-            let mut grid = grid.clone();
-            if grid[x][y] != EMPTY {
-                continue;
+
+    let mut new_grid = grid.clone();
+    new_grid.iter_mut().flatten().for_each(|c| *c = EMPTY);
+    new_grid[guard_x][guard_y] = VISITED;
+
+    while let Some((new_x, new_y)) = movement_delta(&grid, guard_x, guard_y) {
+        match grid[new_x][new_y] {
+            EMPTY => {
+                grid[new_x][new_y] = grid[guard_x][guard_y];
+                grid[guard_x][guard_y] = VISITED;
+                new_grid[guard_x][guard_y] = VISITED;
+                guard_x = new_x;
+                guard_y = new_y;
             }
-            grid[x][y] = OBSTRUCTION;
-            if is_loop(grid) {
-                count += 1;
+            VISITED => {
+                grid[new_x][new_y] = grid[guard_x][guard_y];
+                grid[guard_x][guard_y] = VISITED;
+                new_grid[guard_x][guard_y] = VISITED;
+                guard_x = new_x;
+                guard_y = new_y;
             }
+            OBSTRUCTION => grid[guard_x][guard_y] = rotate_guard(grid[guard_x][guard_y]),
+            _ => unreachable!(),
         }
     }
-    count
+    new_grid
 }
 
 fn part1(mut grid: Vec<Vec<char>>) -> i32 {
