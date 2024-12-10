@@ -23,7 +23,7 @@ fn main() {
         );
     }
     let start = Instant::now();
-    dbg!(part2(grid));
+    dbg!(part1(grid));
     dbg!(start.elapsed());
 }
 
@@ -67,7 +67,7 @@ fn part1(grid: Vec<Vec<Option<u32>>>) -> usize {
     let mut count = 0;
     for x in 0..grid.len() {
         for y in 0..grid[0].len() {
-            let mut set = HashSet::new();
+            let mut set = Vec::new();
             if grid[x][y] == Some(0) {
                 find_trails(&grid, x, y, &mut set);
                 count += set.len();
@@ -77,13 +77,13 @@ fn part1(grid: Vec<Vec<Option<u32>>>) -> usize {
     count
 }
 
-fn find_trails(grid: &[Vec<Option<u32>>], x: usize, y: usize, set: &mut HashSet<(usize, usize)>) {
+fn find_trails(grid: &[Vec<Option<u32>>], x: usize, y: usize, set: &mut Vec<(usize, usize)>) {
     let Some(current_height) = grid[x][y] else {
         return;
     };
 
-    if current_height == 9 {
-        set.insert((x, y));
+    if current_height == 9 && !set.contains(&(x, y)){
+        set.push((x, y));
     }
     if x > 0 && grid[x - 1][y] == Some(current_height + 1) {
         find_trails(grid, x - 1, y, set)
