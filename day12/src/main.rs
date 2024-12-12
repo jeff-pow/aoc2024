@@ -13,7 +13,7 @@ fn main() {
         .map(|line| line.chars().collect::<Vec<_>>())
         .collect::<Vec<_>>();
 
-    println!("{}", part1(&grid));
+    println!("{}", part2(&grid));
 }
 
 fn part2(grid: &[Vec<char>]) -> usize {
@@ -44,18 +44,16 @@ fn part2_helper(
     }
     seen.insert((x, y));
     *area += 1;
+    *fences += surrounding_fences(grid, x, y);
     for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
         let new_x = x as isize + dx;
         let new_y = y as isize + dy;
         if !(0..grid.len() as isize).contains(&new_x)
             || !(0..grid[0].len() as isize).contains(&new_y)
         {
-            *fences += 1;
             continue;
         }
-        if grid[new_x as usize][new_y as usize] != grid[x][y] {
-            *fences += 1;
-        } else {
+        if grid[new_x as usize][new_y as usize] == grid[x][y] {
             part2_helper(
                 grid,
                 (dx, dy),
@@ -69,7 +67,7 @@ fn part2_helper(
     }
 }
 
-fn fences(grid: &[Vec<char>], x: usize, y: usize) -> usize {
+fn surrounding_fences(grid: &[Vec<char>], x: usize, y: usize) -> usize {
     let mut fences = 0;
     for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
         let new_x = x as isize + dx;
