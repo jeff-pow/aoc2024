@@ -8,7 +8,7 @@ use std::{
 
 fn main() {
     let str = read_to_string(File::open("example.txt").unwrap()).unwrap();
-    //let str = read_to_string(File::open("input.txt").unwrap()).unwrap();
+    let str = read_to_string(File::open("input.txt").unwrap()).unwrap();
     let mut grid = Vec::new();
 
     for line in str.lines() {
@@ -46,58 +46,159 @@ fn part2(grid: &[Vec<char>]) -> usize {
     let paths = astar_multiple_paths(grid, start, (exit_x, exit_y));
 
     paths
-        .into_iter()
-        .flat_map(|(came_from, _, goal)| reconstruct_path(came_from, start, goal))
-        .map(|s| s.pos)
-        .collect::<HashSet<_>>()
-        .len()
+    //paths
+    //    .into_iter()
+    //    .flat_map(|(came_from, _, goal)| reconstruct_path(came_from, start, goal))
+    //    .map(|s| s.pos)
+    //    .collect::<HashSet<_>>()
+    //    .len()
 }
 
-fn astar_multiple_paths(
-    grid: &[Vec<char>],
+fn reconstruct_paths(
+    came_from: &HashMap<State, Vec<State>>,
     start: State,
-    goal: (usize, usize),
-) -> Vec<(HashMap<State, Option<State>>, HashMap<State, usize>, State)> {
-    let mut all_optimal_paths = Vec::new();
-    let mut frontier = PriorityQueue::new();
-    frontier.push(start, Reverse(0));
-    let mut cost_so_far = HashMap::new();
-    cost_so_far.insert(start, 0);
-    let mut came_from = HashMap::new();
-    came_from.insert(start, None);
-    let mut min_goal_cost = usize::MAX;
+    goal: State,
+) -> Vec<Vec<State>> {
+    let mut paths = vec![];
+    let mut q = vec![(goal, vec![goal])];
 
-    while let Some((current, _)) = frontier.pop() {
-        if current.pos == goal {
-            let current_cost = *cost_so_far.get(&current).unwrap();
-
-            if current_cost <= min_goal_cost {
-                if current_cost < min_goal_cost {
-                    all_optimal_paths.clear();
-                    min_goal_cost = current_cost;
-                }
-                all_optimal_paths.push((came_from.clone(), cost_so_far.clone(), current));
-            } else {
-                break;
-            }
+    while let Some((current, path)) = q.pop() {
+        if current == start {
+            let mut reversed_path = path.clone();
+            reversed_path.reverse();
+            paths.push(reversed_path);
+            continue;
         }
 
-        for next in neighbors(grid, current) {
-            let new_cost =
-                cost_so_far.get(&current).unwrap() + if next.pos != current.pos { 1 } else { 1000 };
-
-            if !cost_so_far.contains_key(&next) || new_cost < *cost_so_far.get(&next).unwrap() {
-                cost_so_far.insert(next, new_cost);
-
-                let priority = new_cost + heuristic(next.pos, goal);
-                frontier.push(next, Reverse(priority));
-
-                came_from.insert(next, Some(current));
+        if let Some(parents) = came_from.get(&current) {
+            for &parent in parents {
+                let mut new_path = path.clone();
+                new_path.push(parent);
+                q.push((parent, new_path));
             }
         }
     }
 
-    all_optimal_paths
+    paths
+}
+fn astar_multiple_paths(grid: &[Vec<char>], start: State, goal: (usize, usize)) -> usize {
+    let mut all_optimal_paths = HashSet::new();
+    let mut frontier = PriorityQueue::new();
+    frontier.push(start, Reverse(0));
+
+    let mut cost_so_far: HashMap<State, Vec<usize>> = HashMap::new();
+    cost_so_far.insert(start, vec![0]);
+
+    let mut came_from: HashMap<State, Vec<State>> = HashMap::new();
+    came_from.insert(start, vec![]);
+
+    let mut min_goal_cost = usize::MAX;
+
+    while let Some((current, _)) = frontier.pop() {
+        let current_costs = cost_so_far.get(&current).unwrap().clone();
+        let current_cost = current_costs.iter().min().unwrap();
+
+        if current.pos == goal {
+            println!("{}", current_cost);
+            if *current_cost <= min_goal_cost {
+                let paths = reconstruct_paths(&came_from, start, current);
+
+                if *current_cost < min_goal_cost {
+                    all_optimal_paths.clear();
+                    min_goal_cost = *current_cost;
+                }
+                for path in paths {
+                    draw_path(grid, &path);
+                    println!();
+                    all_optimal_paths.extend(path.into_iter().map(|s| s.pos));
+                }
+            }
+            continue; // Continue to find other optimal paths
+        }
+
+        for next in neighbors(grid, current) {
+            let new_cost = current_cost + if next.pos != current.pos { 1 } else { 1000 };
+
+            let next_costs = cost_so_far.entry(next).or_insert(vec![]);
+            let min_next_cost = next_costs.iter().min().cloned().unwrap_or(usize::MAX);
+
+            if new_cost <= min_next_cost {
+                if new_cost < min_next_cost {
+                    next_costs.clear();
+                    came_from.entry(next).or_insert(vec![]).clear();
+                }
+                next_costs.push(new_cost);
+
+                let priority = new_cost + heuristic(next.pos, goal);
+                frontier.push(next, Reverse(priority));
+
+                came_from.entry(next).or_insert(vec![]).push(current);
+            }
+        }
+    }
+
+    all_optimal_paths.len()
+}
+//fn astar_multiple_paths(grid: &[Vec<char>], start: State, goal: (usize, usize)) -> usize {
+//    let mut all_optimal_paths = HashSet::new();
+//    let mut frontier = PriorityQueue::new();
+//    frontier.push(start, Reverse(0));
+//    let mut cost_so_far = HashMap::new();
+//    cost_so_far.insert(start, 0);
+//    let mut came_from = HashMap::new();
+//    came_from.insert(start, None);
+//    let mut min_goal_cost = usize::MAX;
+//
+//    while let Some((current, _)) = frontier.pop() {
+//        if current.pos == goal {
+//            let current_cost = *cost_so_far.get(&current).unwrap();
+//
+//            let path = reconstruct_path(came_from.clone(), start, current);
+//            println!("{}", current_cost);
+//            draw_path(grid, &path);
+//            println!();
+//            if current_cost <= min_goal_cost {
+//                if current_cost < min_goal_cost {
+//                    all_optimal_paths.clear();
+//                    min_goal_cost = current_cost;
+//                }
+//                //draw_path(grid, &path);
+//                all_optimal_paths.extend(path.into_iter().map(|s| s.pos));
+//                //all_optimal_paths.push((came_from.clone(), cost_so_far.clone(), current));
+//            } else {
+//                //break;
+//            }
+//        }
+//
+//        for next in neighbors(grid, current) {
+//            let new_cost =
+//                cost_so_far.get(&current).unwrap() + if next.pos != current.pos { 1 } else { 1000 };
+//
+//            if !cost_so_far.contains_key(&next) || new_cost < *cost_so_far.get(&next).unwrap() {
+//                cost_so_far.insert(next, new_cost);
+//
+//                let priority = new_cost + heuristic(next.pos, goal);
+//                frontier.push(next, Reverse(priority));
+//
+//                came_from.insert(next, Some(current));
+//            }
+//        }
+//    }
+//
+//    all_optimal_paths.len()
+//}
+
+fn draw_path(grid: &[Vec<char>], path: &[State]) {
+    for y in 0..grid.len() {
+        for x in 0..grid[0].len() {
+            if path.iter().any(|s| s.pos == (x, y)) {
+                print!("O");
+            } else {
+                print!("{}", grid[y][x]);
+            }
+        }
+        println!();
+    }
 }
 
 fn astar_p2(
