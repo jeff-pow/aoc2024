@@ -15,7 +15,152 @@ fn main() {
         grid.push(line.chars().collect::<Vec<_>>());
     }
 
-    println!("{}", part1(&grid));
+    println!("{}", part2(&grid));
+}
+
+fn part2(grid: &[Vec<char>]) -> usize {
+    let mut reindeer_x = usize::MAX;
+    let mut reindeer_y = usize::MAX;
+    let mut exit_x = usize::MAX;
+    let mut exit_y = usize::MAX;
+    for y in 0..grid.len() {
+        for x in 0..grid[0].len() {
+            if grid[y][x] == 'S' {
+                reindeer_x = x;
+                reindeer_y = y;
+            } else if grid[y][x] == 'E' {
+                exit_x = x;
+                exit_y = y;
+            }
+        }
+    }
+
+    let start = State {
+        pos: (reindeer_x, reindeer_y),
+        dir: (1, 0),
+    };
+
+    let (came_from, cost_so_far, goal) = astar_p2(grid, start, (exit_x, exit_y));
+    println!("{}", cost_so_far.get(&goal).unwrap());
+
+    let paths = astar_multiple_paths(grid, start, (exit_x, exit_y));
+
+    paths
+        .into_iter()
+        .flat_map(|(came_from, _, goal)| reconstruct_path(came_from, start, goal))
+        .map(|s| s.pos)
+        .collect::<HashSet<_>>()
+        .len()
+}
+
+fn astar_multiple_paths(
+    grid: &[Vec<char>],
+    start: State,
+    goal: (usize, usize),
+) -> Vec<(HashMap<State, Option<State>>, HashMap<State, usize>, State)> {
+    let mut all_optimal_paths = Vec::new();
+    let mut frontier = PriorityQueue::new();
+    frontier.push(start, Reverse(0));
+    let mut cost_so_far = HashMap::new();
+    cost_so_far.insert(start, 0);
+    let mut came_from = HashMap::new();
+    came_from.insert(start, None);
+    let mut min_goal_cost = usize::MAX;
+
+    while let Some((current, _)) = frontier.pop() {
+        if current.pos == goal {
+            let current_cost = *cost_so_far.get(&current).unwrap();
+
+            if current_cost <= min_goal_cost {
+                if current_cost < min_goal_cost {
+                    all_optimal_paths.clear();
+                    min_goal_cost = current_cost;
+                }
+                all_optimal_paths.push((came_from.clone(), cost_so_far.clone(), current));
+            } else {
+                break;
+            }
+        }
+
+        for next in neighbors(grid, current) {
+            let new_cost =
+                cost_so_far.get(&current).unwrap() + if next.pos != current.pos { 1 } else { 1000 };
+
+            if !cost_so_far.contains_key(&next) || new_cost < *cost_so_far.get(&next).unwrap() {
+                cost_so_far.insert(next, new_cost);
+
+                let priority = new_cost + heuristic(next.pos, goal);
+                frontier.push(next, Reverse(priority));
+
+                came_from.insert(next, Some(current));
+            }
+        }
+    }
+
+    all_optimal_paths
+}
+
+fn astar_p2(
+    grid: &[Vec<char>],
+    start: State,
+    goal: (usize, usize),
+) -> (HashMap<State, Option<State>>, HashMap<State, usize>, State) {
+    let mut frontier = PriorityQueue::new();
+    frontier.push(start, Reverse(0));
+    let mut cost_so_far = HashMap::new();
+    cost_so_far.insert(start, 0);
+    let mut came_from = HashMap::new();
+    came_from.insert(start, None);
+
+    while let Some((current, _)) = frontier.pop() {
+        if current.pos == goal {
+            return (came_from, cost_so_far, current);
+        }
+        for next in neighbors(grid, current) {
+            let new_cost =
+                cost_so_far.get(&current).unwrap() + if next.pos != current.pos { 1 } else { 1000 };
+
+            if !cost_so_far.contains_key(&next) || new_cost < *cost_so_far.get(&next).unwrap() {
+                cost_so_far.insert(next, new_cost);
+
+                let priority = new_cost + heuristic(next.pos, goal);
+                frontier.push(next, Reverse(priority));
+
+                came_from.insert(next, Some(current));
+            }
+        }
+    }
+
+    unreachable!()
+}
+
+fn reconstruct_path(
+    came_from: HashMap<State, Option<State>>,
+    start: State,
+    goal: State,
+) -> Vec<State> {
+    let mut current = goal;
+    let mut path = Vec::new();
+
+    while current != start {
+        path.push(current);
+        current = came_from.get(&current).unwrap().unwrap();
+    }
+    path.push(start);
+    path.reverse();
+    path
+}
+
+fn score_path(path: &[State]) -> usize {
+    path.windows(2)
+        .map(|window| {
+            if window[1].pos != window[0].pos {
+                1
+            } else {
+                1000
+            }
+        })
+        .sum()
 }
 
 fn part1(grid: &[Vec<char>]) -> usize {
@@ -35,7 +180,7 @@ fn part1(grid: &[Vec<char>]) -> usize {
         }
     }
 
-    astar(
+    astar_p1(
         grid,
         State {
             pos: (reindeer_x, reindeer_y),
@@ -51,7 +196,7 @@ struct State {
     dir: (isize, isize),
 }
 
-fn astar(grid: &[Vec<char>], start: State, goal: (usize, usize)) -> usize {
+fn astar_p1(grid: &[Vec<char>], start: State, goal: (usize, usize)) -> usize {
     let mut frontier = PriorityQueue::new();
     frontier.push(start, Reverse(0));
     let mut cost_so_far = HashMap::new();
@@ -126,48 +271,5 @@ fn rotate_left(current_dir: (isize, isize)) -> (isize, isize) {
         (-1, 0) => (0, -1),
         (0, -1) => (1, 0),
         _ => unreachable!(),
-    }
-}
-
-fn find_path(
-    grid: &[Vec<char>],
-    pos: (usize, usize),
-    facing: (isize, isize),
-    visited: HashSet<((usize, usize), (isize, isize))>,
-    depth_remaining: usize,
-) -> Option<u64> {
-    if grid[pos.1][pos.0] == 'E' {
-        return Some(0);
-    }
-    if depth_remaining == 0 {
-        return None;
-    }
-    if visited.contains(&(pos, facing)) {
-        return None;
-    }
-    let mut visited = visited.clone();
-    visited.insert((pos, facing));
-
-    let new_pos = (
-        pos.0.checked_add_signed(facing.0).unwrap(),
-        pos.1.checked_add_signed(facing.1).unwrap(),
-    );
-    if grid[new_pos.1][new_pos.0] != '#' {
-        if let Some(score) = find_path(grid, new_pos, facing, visited.clone(), depth_remaining - 1)
-        {
-            return Some(score + 1);
-        }
-    }
-    let left = rotate_left(facing);
-    let left_score = find_path(grid, pos, left, visited.clone(), depth_remaining - 1);
-
-    let right = rotate_left(facing);
-    let right_score = find_path(grid, pos, right, visited, depth_remaining - 1);
-
-    match (left_score, right_score) {
-        (Some(l), Some(r)) => Some(l.min(r)),
-        (Some(l), None) => Some(l + 1000),
-        (None, Some(r)) => Some(r + 1000),
-        (None, None) => None,
     }
 }
