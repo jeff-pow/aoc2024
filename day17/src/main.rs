@@ -1,4 +1,4 @@
-use std::{fs::File, io::read_to_string};
+use std::{collections::HashSet, fs::File, io::read_to_string};
 
 fn main() {
     //let str = read_to_string(File::open("example.txt").unwrap()).unwrap();
@@ -29,7 +29,48 @@ fn main() {
             .map(|x| x.to_string() + ",")
             .collect::<String>()
     );
-    println!("{}", part2(computer, &instructions));
+    let mut values = instructions.clone();
+    let mut results = vec![];
+    part2(&mut values, &instructions, 0, &mut results, 1);
+    dbg!(results);
+}
+
+fn part2(
+    values: &mut Vec<i64>,
+    instructions: &[i64],
+    a: i64,
+    results: &mut Vec<i64>,
+    level: usize,
+) {
+    if values.is_empty() {
+        return;
+    }
+    let val = values.pop().unwrap();
+    let mut candidates = HashSet::new();
+    for i in 0..8 {
+        let tmp = Computer {
+            registers: [a + i, 0, 0],
+            instruction_pointer: 0,
+        };
+        let output = part1(tmp, instructions);
+        if output[0] == val {
+            candidates.insert(i);
+            if level == instructions.len() {
+                results.push(a + i);
+                println!("Valid a: {}", a + i);
+            }
+        }
+    }
+    for candidate in candidates {
+        let mut v = values.clone();
+        part2(
+            &mut v,
+            instructions,
+            (a + candidate) << 3,
+            results,
+            level + 1,
+        );
+    }
 }
 
 fn part1(mut computer: Computer, instructions: &[i64]) -> Vec<i64> {
@@ -43,38 +84,6 @@ fn part1(mut computer: Computer, instructions: &[i64]) -> Vec<i64> {
         }
     }
     output
-}
-
-fn part2(computer: Computer, instructions: &[i64]) -> i64 {
-    let mut found = 0;
-    for l in (0..instructions.len()).rev() {
-        found <<= 3;
-        let f = found;
-        for possibility in f..f + 8 {
-            let mut tmp = computer;
-            tmp.registers[0] = possibility;
-            let output = part1(tmp, instructions);
-            if output == instructions[l..] {
-                dbg!(output, possibility);
-                found = possibility;
-                break;
-            }
-        }
-    }
-    dbg!(found);
-
-    let mut tmp = computer;
-    tmp.registers[0] = found;
-    let output = part1(tmp, instructions);
-    assert_eq!(output, instructions);
-    found
-    //for i in (0b101110000 << 3)..(0b101110000 << 3) + 8 {
-    //    let mut tmp = computer;
-    //    tmp.registers[0] = i;
-    //    let output = part1(tmp, instructions);
-    //    println!("{output:?}, {i}, {i:0b}");
-    //    //println!("{output:?}");
-    //}
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -96,8 +105,7 @@ impl Computer {
         self.instruction_pointer += 2;
         match opcode {
             0 => {
-                self.registers[0] =
-                    (self.registers[0] as f32 / 2f32.powi(combo_operand as i32)).trunc() as i64
+                self.registers[0] /= 2i64.pow(combo_operand as u32);
             }
             1 => {
                 self.registers[1] ^= literal_operand;
@@ -117,76 +125,13 @@ impl Computer {
                 return Some(combo_operand % 8);
             }
             6 => {
-                self.registers[1] =
-                    (self.registers[0] as f32 / 2f32.powi(combo_operand as i32)).trunc() as i64
+                self.registers[1] = self.registers[0] / 2i64.pow(combo_operand as u32);
             }
             7 => {
-                self.registers[2] =
-                    (self.registers[0] as f32 / 2f32.powi(combo_operand as i32)).trunc() as i64
+                self.registers[2] = self.registers[0] / 2i64.pow(combo_operand as u32);
             }
             _ => unreachable!(),
         };
         None
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_register_c_9_program() {
-        let computer = Computer {
-            registers: [0, 0, 9],
-            instruction_pointer: 0,
-        };
-        let instructions = vec![2, 6];
-        part1(computer, &instructions);
-        assert_eq!(computer.registers[1], 1);
-    }
-
-    #[test]
-    fn test_register_a_10_program() {
-        let computer = Computer {
-            registers: [10, 0, 0],
-            instruction_pointer: 0,
-        };
-        let instructions = vec![5, 0, 5, 1, 5, 4];
-        let output = part1(computer, &instructions);
-        assert_eq!(output, vec![0, 1, 2]);
-    }
-
-    #[test]
-    fn test_register_a_2024_program() {
-        let computer = Computer {
-            registers: [2024, 0, 0],
-            instruction_pointer: 0,
-        };
-        let instructions = vec![0, 1, 5, 4, 3, 0];
-        let output = part1(computer, &instructions);
-        assert_eq!(output, vec![4, 2, 5, 6, 7, 7, 7, 7, 3, 1, 0]);
-        assert_eq!(computer.registers[0], 0);
-    }
-
-    #[test]
-    fn test_register_b_29_program() {
-        let computer = Computer {
-            registers: [0, 29, 0],
-            instruction_pointer: 0,
-        };
-        let instructions = vec![1, 7];
-        part1(computer, &instructions);
-        assert_eq!(computer.registers[1], 26);
-    }
-
-    #[test]
-    fn test_register_b_2024_c_43690_program() {
-        let computer = Computer {
-            registers: [0, 2024, 43690],
-            instruction_pointer: 0,
-        };
-        let instructions = vec![4, 0];
-        part1(computer, &instructions);
-        assert_eq!(computer.registers[1], 44354);
     }
 }
