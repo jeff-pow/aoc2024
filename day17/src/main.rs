@@ -1,8 +1,9 @@
-use std::{collections::HashSet, fs::File, io::read_to_string};
+use std::{fs::File, io::read_to_string, time::Instant};
 
 fn main() {
     //let str = read_to_string(File::open("example.txt").unwrap()).unwrap();
     //let str = read_to_string(File::open("p2_example.txt").unwrap()).unwrap();
+    let mut t = Instant::now();
     let str = read_to_string(File::open("input.txt").unwrap()).unwrap();
     let (registers, instr) = str.split_once("\n\n").unwrap();
 
@@ -33,6 +34,7 @@ fn main() {
     let mut results = vec![];
     part2(&mut values, &instructions, 0, &mut results, 1);
     dbg!(results);
+    dbg!(t.elapsed());
 }
 
 fn part2(
@@ -46,7 +48,7 @@ fn part2(
         return;
     }
     let val = values.pop().unwrap();
-    let mut candidates = HashSet::new();
+    let mut candidates = Vec::new();
     for i in 0..8 {
         let tmp = Computer {
             registers: [a + i, 0, 0],
@@ -54,10 +56,9 @@ fn part2(
         };
         let output = part1(tmp, instructions);
         if output[0] == val {
-            candidates.insert(i);
+            candidates.push(i);
             if level == instructions.len() {
                 results.push(a + i);
-                println!("Valid a: {}", a + i);
             }
         }
     }
