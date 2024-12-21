@@ -135,9 +135,9 @@ fn len_recursive(
 pub fn part2(str: &str) -> usize {
     let (numeric_paths, directional_paths) = paths();
 
+    let mut cache = HashMap::new();
     str.lines()
         .map(|code| {
-            let mut cache = HashMap::new();
             let mut curr = 'A';
             let mut acc = "".to_string();
             for val in code.chars() {
