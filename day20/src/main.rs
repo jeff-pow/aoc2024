@@ -1,9 +1,11 @@
-use pathfinding::prelude::{astar, astar_bag};
+mod part2;
+
+use part2::part2;
+use pathfinding::prelude::astar;
 use std::{collections::HashSet, fs::File, io::read_to_string};
 
 fn main() {
-    let str = read_to_string(File::open("example.txt").unwrap()).unwrap();
-    //let str = read_to_string(File::open("input.txt").unwrap()).unwrap();
+    let str = read_to_string(File::open("input.txt").unwrap()).unwrap();
     let mut grid = Vec::new();
 
     for line in str.lines() {
@@ -11,6 +13,7 @@ fn main() {
     }
 
     println!("{}", part1(&grid));
+    println!("{}", part2(&str));
 }
 
 fn part1(grid: &[Vec<char>]) -> usize {
@@ -32,66 +35,45 @@ fn part1(grid: &[Vec<char>]) -> usize {
 
     let start = State {
         pos: (start_x, start_y),
-        time: 0,
-        time_to_cheat: usize::MAX,
+        has_cheated: true,
     };
     let mut cheats_used = HashSet::new();
 
     let successors = |s: &State| neighbors_with_cost(grid, &cheats_used, *s);
     let heuristic = |s: &State| ((s.pos.0.abs_diff(exit_x)) + (s.pos.1.abs_diff(exit_y))) as u32;
     let success = |s: &State| s.pos == (exit_x, exit_y);
-    let (path, base_cost) = astar(&start, successors, heuristic, success).unwrap();
-    draw_path(grid, &path);
+    let (_, base_cost) = astar(&start, successors, heuristic, success).unwrap();
     dbg!(base_cost);
 
-    let vec = (0..base_cost as usize)
-        .filter_map(|time_to_cheat| {
-            let mut current_path = HashSet::new();
-            let successors = |s: &State| neighbors_with_cost(grid, &cheats_used, *s);
-            let start = State {
-                pos: (start_x, start_y),
-                time: 0,
-                time_to_cheat,
-            };
-            let (path, cost) = astar(&start, successors, heuristic, success).unwrap();
-            if time_to_cheat == 20 {
-                println!("Saved {}", base_cost - cost);
-                draw_path(grid, &path);
-            }
-            if cost < base_cost {
-                for window in path.windows(3) {
+    std::iter::from_fn(|| {
+        let successors = |s: &State| neighbors_with_cost(grid, &cheats_used, *s);
+        let start = State {
+            pos: (start_x, start_y),
+            has_cheated: false,
+        };
+
+        astar(&start, successors, heuristic, success)
+            .filter(|&(_, cost)| cost < base_cost)
+            .map(|(path, cost)| {
+                path.windows(3).for_each(|window| {
                     if grid[window[1].pos.1][window[1].pos.0] == '#' {
                         cheats_used.insert([window[0].pos, window[2].pos]);
                     }
-                }
-                Some(base_cost - cost)
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    for i in 0..100 {
-        if vec.contains(&i) {
-            println!(
-                "There are {} cheats that save {} picoseconds.",
-                vec.iter().filter(|&&x| x == i).count(),
-                i
-            );
-        }
-    }
-    0
+                });
+                base_cost - cost
+            })
+    })
+    .inspect(|&time_saved| println!("{time_saved}"))
+    .take_while(|&time_saved| time_saved >= 100)
+    .count()
 }
 
 fn neighbors_with_cost(
     grid: &[Vec<char>],
     searched: &HashSet<[(usize, usize); 2]>,
-    State {
-        pos,
-        time,
-        time_to_cheat,
-    }: State,
+    State { pos, has_cheated }: State,
 ) -> Vec<(State, u32)> {
-    let possible_neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    let mut possible_neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
         .into_iter()
         .filter_map(|dir| {
             let new_x = pos.0.checked_add_signed(dir.0)?;
@@ -109,15 +91,21 @@ fn neighbors_with_cost(
             Some((
                 State {
                     pos: (new_x, new_y),
-                    time: time + 1,
-                    time_to_cheat,
+                    has_cheated,
                 },
                 1,
             ))
         })
         .collect::<Vec<_>>();
 
-    if time == time_to_cheat {
+    if !has_cheated {
+        possible_neighbors
+            .iter_mut()
+            .for_each(|(State { pos, has_cheated }, _)| {
+                if grid[pos.1][pos.0] == '#' {
+                    *has_cheated = true;
+                }
+            });
         possible_neighbors
     } else {
         possible_neighbors
@@ -143,22 +131,8 @@ fn is_midpoint(point1: (usize, usize), point2: (usize, usize), point3: (usize, u
     p3 == (mid_x, mid_y)
 }
 
-fn draw_path(grid: &[Vec<char>], path: &[State]) {
-    for y in 0..grid.len() {
-        for x in 0..grid[0].len() {
-            if path.iter().any(|s| s.pos == (x, y)) {
-                print!("O");
-            } else {
-                print!("{}", grid[y][x]);
-            }
-        }
-        println!();
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct State {
     pos: (usize, usize),
-    time: usize,
-    time_to_cheat: usize,
+    has_cheated: bool,
 }
