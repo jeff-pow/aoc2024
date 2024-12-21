@@ -19,10 +19,10 @@ fn grid_to_hashmap<const ROWS: usize, const COLS: usize>(
 ) -> HashMap<(i32, i32), char> {
     let mut map = HashMap::new();
 
-    for row in 0..ROWS {
-        for col in 0..COLS {
-            if let Some(value) = grid[row][col] {
-                map.insert((row as i32, col as i32), value);
+    for (i, row) in grid.into_iter().enumerate() {
+        for (j, val) in row.into_iter().enumerate() {
+            if let Some(val) = val {
+                map.insert((i as i32, j as i32), val);
             }
         }
     }
@@ -30,7 +30,7 @@ fn grid_to_hashmap<const ROWS: usize, const COLS: usize>(
     map
 }
 
-fn find_path_numeric_bfs(
+fn find_path(
     locations: &HashMap<(i32, i32), char>,
     start_pos: (i32, i32),
     to_find: char,
@@ -106,9 +106,36 @@ enum SortType {
     Normal,
 }
 
-pub fn part1(str: &str) -> usize {
+fn len_recursive(
+    curr: char,
+    next: char,
+    cache: &mut HashMap<(char, char, usize), usize>,
+    directional_paths: &HashMap<(char, char), String>,
+    depth: usize,
+) -> usize {
+    if let Some(&len) = cache.get(&(curr, next, depth)) {
+        return len;
+    }
+    if depth == 0 {
+        return 1;
+    }
+
+    let expansion = directional_paths.get(&(curr, next)).unwrap();
+
+    let mut i = 'A';
+    let mut total = 0;
+    for next in expansion.chars() {
+        total += len_recursive(i, next, cache, directional_paths, depth - 1);
+        i = next;
+    }
+    cache.insert((curr, next, depth), total);
+    total
+}
+
+pub fn part2(str: &str, depth: usize) -> usize {
     let (numeric_paths, directional_paths) = paths();
 
+    let mut cache = HashMap::new();
     str.lines()
         .map(|code| {
             let mut curr = 'A';
@@ -118,17 +145,14 @@ pub fn part1(str: &str) -> usize {
                 curr = val;
             }
 
-            for _ in 0..2 {
-                let mut new_acc = "".to_string();
-                let mut curr = 'A';
-                for val in acc.chars() {
-                    new_acc += directional_paths.get(&(curr, val)).unwrap();
-                    curr = val;
-                }
-                acc = new_acc;
+            let mut total = 0;
+            let mut curr = 'A';
+            for next in acc.chars() {
+                total += len_recursive(curr, next, &mut cache, &directional_paths, depth);
+                curr = next;
             }
 
-            code.strip_suffix('A').unwrap().parse::<usize>().unwrap() * acc.len()
+            code.strip_suffix('A').unwrap().parse::<usize>().unwrap() * total
         })
         .sum()
 }
@@ -145,7 +169,7 @@ fn paths() -> (HashMap<(char, char), String>, HashMap<(char, char), String>) {
             }
             for (&k, &v) in &numeric_locations {
                 if from == v {
-                    let raw_path = find_path_numeric_bfs(&numeric_locations, k, to).unwrap();
+                    let raw_path = find_path(&numeric_locations, k, to).unwrap();
                     let sort_type = if ['0', 'A'].contains(&from) && ['7', '4', '1'].contains(&to) {
                         SortType::Updo
                     } else if ['7', '4', '1'].contains(&from) && ['0', 'A'].contains(&to) {
@@ -171,7 +195,7 @@ fn paths() -> (HashMap<(char, char), String>, HashMap<(char, char), String>) {
             }
             for (&k, &v) in &directional_locations {
                 if from == v {
-                    let raw_path = find_path_numeric_bfs(&directional_locations, k, to).unwrap();
+                    let raw_path = find_path(&directional_locations, k, to).unwrap();
                     let sort_type = if from == '<' {
                         SortType::Leri
                     } else if to == '<' {
