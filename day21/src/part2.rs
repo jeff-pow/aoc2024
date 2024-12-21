@@ -106,45 +106,29 @@ enum SortType {
     Normal,
 }
 
-fn recursive(
-    acc: String,
-    directional_paths: &HashMap<(char, char), String>,
-    depth: usize,
-) -> String {
-    if depth == 0 {
-        return acc;
-    }
-
-    let mut new_acc = String::new();
-    let mut curr = 'A';
-
-    for val in acc.chars() {
-        new_acc.push_str(directional_paths.get(&(curr, val)).unwrap());
-        curr = val;
-    }
-
-    recursive(new_acc, directional_paths, depth - 1)
-}
-
 fn len_recursive(
     curr: char,
     next: char,
+    cache: &mut HashMap<(char, char, usize), usize>,
     directional_paths: &HashMap<(char, char), String>,
     depth: usize,
 ) -> usize {
+    if let Some(&len) = cache.get(&(curr, next, depth)) {
+        return len;
+    }
     if depth == 0 {
         return 1;
     }
 
     let expansion = directional_paths.get(&(curr, next)).unwrap();
 
-    let mut curr = 'A';
-
+    let mut i = 'A';
     let mut total = 0;
     for next in expansion.chars() {
-        total += len_recursive(curr, next, directional_paths, depth - 1);
-        curr = next;
+        total += len_recursive(i, next, cache, directional_paths, depth - 1);
+        i = next;
     }
+    cache.insert((curr, next, depth), total);
     total
 }
 
@@ -153,6 +137,7 @@ pub fn part2(str: &str) -> usize {
 
     str.lines()
         .map(|code| {
+            let mut cache = HashMap::new();
             let mut curr = 'A';
             let mut acc = "".to_string();
             for val in code.chars() {
@@ -163,16 +148,11 @@ pub fn part2(str: &str) -> usize {
             let mut total = 0;
             let mut curr = 'A';
             for next in acc.chars() {
-                total += len_recursive(curr, next, &directional_paths, 3);
+                total += len_recursive(curr, next, &mut cache, &directional_paths, 25);
                 curr = next;
             }
-            let acc = recursive(acc, &directional_paths, 3);
-            if total != acc.len() {
-                dbg!(total, acc.len());
-                println!("Not equal");
-            }
 
-            code.strip_suffix('A').unwrap().parse::<usize>().unwrap() * acc.len()
+            code.strip_suffix('A').unwrap().parse::<usize>().unwrap() * total
         })
         .sum()
 }
