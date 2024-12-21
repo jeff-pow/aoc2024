@@ -106,7 +106,49 @@ enum SortType {
     Normal,
 }
 
-pub fn part1(str: &str) -> usize {
+fn recursive(
+    acc: String,
+    directional_paths: &HashMap<(char, char), String>,
+    depth: usize,
+) -> String {
+    if depth == 0 {
+        return acc;
+    }
+
+    let mut new_acc = String::new();
+    let mut curr = 'A';
+
+    for val in acc.chars() {
+        new_acc.push_str(directional_paths.get(&(curr, val)).unwrap());
+        curr = val;
+    }
+
+    recursive(new_acc, directional_paths, depth - 1)
+}
+
+fn len_recursive(
+    curr: char,
+    next: char,
+    directional_paths: &HashMap<(char, char), String>,
+    depth: usize,
+) -> usize {
+    if depth == 0 {
+        return 1;
+    }
+
+    let expansion = directional_paths.get(&(curr, next)).unwrap();
+
+    let mut curr = 'A';
+
+    let mut total = 0;
+    for next in expansion.chars() {
+        total += len_recursive(curr, next, directional_paths, depth - 1);
+        curr = next;
+    }
+    total
+}
+
+pub fn part2(str: &str) -> usize {
     let (numeric_paths, directional_paths) = paths();
 
     str.lines()
@@ -118,14 +160,16 @@ pub fn part1(str: &str) -> usize {
                 curr = val;
             }
 
-            for _ in 0..2 {
-                let mut new_acc = "".to_string();
-                let mut curr = 'A';
-                for val in acc.chars() {
-                    new_acc += directional_paths.get(&(curr, val)).unwrap();
-                    curr = val;
-                }
-                acc = new_acc;
+            let mut total = 0;
+            let mut curr = 'A';
+            for next in acc.chars() {
+                total += len_recursive(curr, next, &directional_paths, 3);
+                curr = next;
+            }
+            let acc = recursive(acc, &directional_paths, 3);
+            if total != acc.len() {
+                dbg!(total, acc.len());
+                println!("Not equal");
             }
 
             code.strip_suffix('A').unwrap().parse::<usize>().unwrap() * acc.len()
